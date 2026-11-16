@@ -1,8 +1,0 @@
-{
-  "views": {
-    "resource-manager": {
-      "title": "表情底图管理",
-      "description": "检查并下载 meme_generator 的表情底图与字体资源"
-    }
-  }
-}
