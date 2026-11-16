@@ -1,0 +1,8 @@
+name: astrbot_plugin_chatgpt2api_image
+display_name: ChatGPT2API 生图
+desc: 通过 ChatGPT2API 的 OpenAI 兼容图片接口，用 /st 指令根据提示词生成并发送图片
+short_desc: /st 提示词 AI 生图
+version: 0.1.0
+author: DIY
+repo: ""
+astrbot_version: ">=4.13,<5"
