@@ -1,0 +1,148 @@
+{
+  "watch_items": {
+    "description": "监视项列表",
+    "type": "template_list",
+    "hint": "可添加多个文件夹。每项填写容器内绝对路径、用途说明和接收推送的私聊 UMO。",
+    "templates": {
+      "folder": {
+        "name": "文件夹监视项",
+        "hint": "监视一个文件夹中的文件新增和删除。",
+        "display_item": "description",
+        "items": {
+          "folder_path": {
+            "description": "容器内绝对路径",
+            "type": "string",
+            "default": "",
+            "obvious_hint": true,
+            "hint": "例如 /watched/downloads。必须是在 AstrBot 容器内可见的路径，不是宿主机路径。"
+          },
+          "description": {
+            "description": "用途说明",
+            "type": "string",
+            "default": "",
+            "hint": "会显示在推送消息中，例如“下载目录”“漫画入库”。"
+          },
+          "bind_umo": {
+            "description": "接收私聊的 UMO",
+            "type": "string",
+            "default": "",
+            "obvious_hint": true,
+            "hint": "格式：平台ID:消息类型:会话ID，例如 aiocqhttp:FriendMessage:123456789。在目标私聊中发送 /sid 可获取。"
+          },
+          "enabled": {
+            "description": "启用此监视项",
+            "type": "bool",
+            "default": true
+          },
+          "poll_interval": {
+            "description": "轮询间隔（秒）",
+            "type": "int",
+            "default": 0,
+            "slider": {
+              "min": 0,
+              "max": 3600,
+              "step": 1
+            },
+            "hint": "0 表示使用全局默认间隔；填 1 及以上则覆盖全局值。"
+          }
+        }
+      }
+    },
+    "default": []
+  },
+  "default_poll_interval": {
+    "description": "全局默认轮询间隔（秒）",
+    "type": "int",
+    "default": 30,
+    "slider": {
+      "min": 1,
+      "max": 3600,
+      "step": 1
+    },
+    "hint": "监视项 poll_interval 为 0 时使用此值。轮询间隔越短，变化发现越快，磁盘开销也越高。"
+  },
+  "ignore_hidden": {
+    "description": "忽略隐藏文件和隐藏目录",
+    "type": "bool",
+    "default": true,
+    "hint": "按路径分量判断：任何以“.”开头的文件或目录（如 .git、.cache、.DS_Store）都会被跳过。"
+  },
+  "ignore_patterns": {
+    "description": "额外忽略规则",
+    "type": "list",
+    "default": [
+      "*.tmp",
+      "*.temp",
+      "*.part",
+      "*.partial",
+      "*.download",
+      "*.crdownload",
+      "*.aria2",
+      "~$*",
+      "*.swp",
+      "*.swo",
+      "*.swx",
+      ".~lock.*"
+    ],
+    "hint": "fnmatch 通配符，同时匹配文件名和相对路径。例如 *.tmp、cache/*、*.crdownload。"
+  },
+  "debounce_seconds": {
+    "description": "推送合并等待时间（秒）",
+    "type": "int",
+    "default": 5,
+    "slider": {
+      "min": 0,
+      "max": 300,
+      "step": 1
+    },
+    "hint": "检测到变化后再等待这么久，把同一批变化合并成一条消息。0 表示不等待。"
+  },
+  "max_files_per_message": {
+    "description": "单条消息最多列出的文件数",
+    "type": "int",
+    "default": 20,
+    "slider": {
+      "min": 1,
+      "max": 200,
+      "step": 1
+    },
+    "hint": "新增和删除合计最多列出这么多条，超出部分显示“等 N 个未列出”。"
+  },
+  "ai_enabled": {
+    "description": "使用 AI 润色提醒",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后会调用当前聊天模型，结合人格把生硬的模板提醒改写成自然的话术。注意：用途、路径、文件名会发送给模型提供商。关闭则直接发送原始模板。"
+  },
+  "ai_provider_id": {
+    "description": "润色使用的模型提供商",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "留空则跟随每个 UMO 当前使用的聊天模型；也可以固定选一个提供商。"
+  },
+  "ai_persona_id": {
+    "description": "润色使用的人格",
+    "type": "string",
+    "default": "",
+    "_special": "select_persona",
+    "hint": "留空则依次使用绑定 UMO 当前对话人格、该 UMO 配置的默认人格。"
+  },
+  "ai_timeout_seconds": {
+    "description": "AI 润色超时（秒）",
+    "type": "int",
+    "default": 30,
+    "slider": {
+      "min": 5,
+      "max": 120,
+      "step": 5
+    },
+    "hint": "模型请求超过这个时间就回退到原始模板，避免推送任务一直卡住。"
+  },
+  "ai_fallback_to_template": {
+    "description": "AI 失败时回退模板",
+    "type": "bool",
+    "default": true,
+    "hint": "模型超时、未配置、返回内容缺少路径/文件名时，是否发送原始模板提醒。关闭后这些情况下本次不推送。"
+  }
+}

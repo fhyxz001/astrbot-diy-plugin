@@ -1,0 +1,56 @@
+{
+  "download_dir": {
+    "description": "下载根目录",
+    "type": "string",
+    "default": "",
+    "hint": "留空时使用 data/plugin_data/astrbot_plugin_copymanga/downloads；相对路径相对于 AstrBot 根目录"
+  },
+  "api_domain": {
+    "description": "拷贝漫画 API 域名",
+    "type": "string",
+    "default": "api.copy202601.com",
+    "hint": "不要带 https:// 前缀"
+  },
+  "img_concurrency": {
+    "description": "图片下载并发数",
+    "type": "int",
+    "default": 8,
+    "slider": {
+      "min": 1,
+      "max": 20,
+      "step": 1
+    }
+  },
+  "max_accounts": {
+    "description": "账号池上限",
+    "type": "int",
+    "default": 5,
+    "slider": {
+      "min": 1,
+      "max": 20,
+      "step": 1
+    },
+    "hint": "自动注册账号的数量上限；达到上限且全部受限时会提示稍后重试"
+  },
+  "max_chapters_per_task": {
+    "description": "单次最多下载章节数",
+    "type": "int",
+    "default": 0,
+    "slider": {
+      "min": 0,
+      "max": 9999,
+      "step": 1
+    },
+    "hint": "0 表示不限制；已经保存过的旧配置不会自动更新，需要在插件配置中手动改为 0"
+  },
+  "request_timeout": {
+    "description": "API 请求超时（秒）",
+    "type": "int",
+    "default": 15,
+    "slider": {
+      "min": 5,
+      "max": 60,
+      "step": 1
+    }
+  }
+}

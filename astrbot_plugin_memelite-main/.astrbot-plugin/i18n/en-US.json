@@ -1,0 +1,8 @@
+{
+  "views": {
+    "resource-manager": {
+      "title": "Meme Assets",
+      "description": "Check and download meme base images and fonts for meme_generator"
+    }
+  }
+}

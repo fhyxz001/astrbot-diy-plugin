@@ -1,0 +1,8 @@
+name: astrbot_plugin_folder_watcher
+display_name: 文件夹变更监视
+desc: 轮询监视多个容器内文件夹，文件新增或删除时调用 AI 结合人格润色并私聊推送。
+short_desc: 文件夹变动，AI 人格化私聊提醒。
+version: v1.1.0
+author: hexbkyoma
+repo: https://gitee.com/hexbkyoma/astrbot_plugin_folder_watcher
+astrbot_version: ">=4.10.4"

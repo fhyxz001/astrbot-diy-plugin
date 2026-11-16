@@ -1,0 +1,8 @@
+name: astrbot_plugin_copymanga
+display_name: 拷贝漫画搜索下载
+desc: 在私聊中搜索拷贝漫画，并把章节图片下载到指定目录
+short_desc: 搜索拷贝漫画并下载章节图片
+version: 0.1.0
+author: DIY
+repo: ""
+astrbot_version: ">=4.13,<5"

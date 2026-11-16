@@ -1,0 +1,65 @@
+{
+  "base_url": {
+    "description": "PT 站点地址",
+    "type": "string",
+    "default": "",
+    "hint": "NexusPHP 站点根地址，例如 https://pt.example.com（不要带结尾斜杠）"
+  },
+  "cookie": {
+    "description": "站点登录 Cookie",
+    "type": "string",
+    "default": "",
+    "hint": "从浏览器开发者工具复制完整 Cookie，需包含登录态字段（如 c_secure_uid、c_secure_pass、c_secure_login）"
+  },
+  "request_timeout": {
+    "description": "请求超时（秒）",
+    "type": "int",
+    "default": 20,
+    "slider": {
+      "min": 5,
+      "max": 60,
+      "step": 1
+    }
+  },
+  "list_limit": {
+    "description": "列表显示条数",
+    "type": "int",
+    "default": 10,
+    "slider": {
+      "min": 1,
+      "max": 30,
+      "step": 1
+    },
+    "hint": "首页和搜索结果最多显示的种子数量"
+  },
+  "qb_url": {
+    "description": "qBittorrent WebUI 地址",
+    "type": "string",
+    "default": "http://127.0.0.1:8080",
+    "hint": "例如 http://127.0.0.1:8080，不带结尾斜杠"
+  },
+  "qb_api_key": {
+    "description": "qBittorrent API Key",
+    "type": "string",
+    "default": "",
+    "hint": "qBittorrent 5.2+ 的 WebUI API Key，在 选项 → WebUI 中生成或查看"
+  },
+  "qb_savepath": {
+    "description": "qBittorrent 保存路径",
+    "type": "string",
+    "default": "",
+    "hint": "留空使用 qBittorrent 默认路径；需填写 qBittorrent 所在机器上的绝对路径"
+  },
+  "qb_category": {
+    "description": "qBittorrent 分类",
+    "type": "string",
+    "default": "",
+    "hint": "留空则不设置分类"
+  },
+  "qb_paused": {
+    "description": "添加后暂停",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后种子以暂停状态添加，需要在 qBittorrent 中手动开始"
+  }
+}

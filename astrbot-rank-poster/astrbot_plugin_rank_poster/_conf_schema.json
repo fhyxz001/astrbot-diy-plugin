@@ -1,0 +1,79 @@
+{
+  "enabled": {
+    "description": "启用插件",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后不再响应任何关键词。"
+  },
+  "server_url": {
+    "description": "排行榜海报服务地址",
+    "type": "string",
+    "default": "http://192.168.1.13:2617",
+    "hint": "只填 IP/主机名也可以，会自动补全 http:// 和端口 2617；例如 192.168.1.13 等价于 http://192.168.1.13:2617。"
+  },
+  "default_type": {
+    "description": "默认榜单类型",
+    "type": "string",
+    "default": "day",
+    "options": ["day", "week", "month", "year"],
+    "labels": ["日榜", "周榜", "月榜", "总榜"],
+    "hint": "用户只说“排行榜”时展示的榜单；year 实际对应站点总榜。"
+  },
+  "trigger_keywords": {
+    "description": "触发关键词",
+    "type": "list",
+    "default": ["排行榜", "榜单", "海报", "看榜", "rank", "日榜", "周榜", "月榜", "总榜"],
+    "hint": "消息中包含任一关键词即触发查询（英文关键词按整词匹配）。"
+  },
+  "group_require_at": {
+    "description": "群聊需要 @机器人 或唤醒前缀",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后群聊里必须 @机器人（或使用唤醒前缀）才会响应，后续回复序号也需要 @，可避免误触。关闭则群内任意消息都可能触发。"
+  },
+  "allow_group": {
+    "description": "允许在群聊中使用",
+    "type": "bool",
+    "default": true
+  },
+  "request_timeout": {
+    "description": "接口请求超时（秒）",
+    "type": "int",
+    "default": 60,
+    "slider": {"min": 10, "max": 300, "step": 5},
+    "hint": "海报图由服务端实时拼图，组数越多耗时越长，页码较大时建议调高。"
+  },
+  "state_ttl": {
+    "description": "对话状态有效期（秒）",
+    "type": "int",
+    "default": 600,
+    "slider": {"min": 60, "max": 3600, "step": 30},
+    "hint": "发出海报后，等待用户回复序号/翻页/切换榜单的时间，超时后需要重新触发。"
+  },
+  "max_page": {
+    "description": "最大页码",
+    "type": "int",
+    "default": 10,
+    "slider": {"min": 1, "max": 10, "step": 1},
+    "hint": "每页 10 个，页码即接口的 groups 参数，接口最多 10 组（100 个视频）。"
+  },
+  "open_download_key": {
+    "description": "开放下载 Key",
+    "type": "string",
+    "default": "912bdbc4a3354d5d86843309e3bc52b7",
+    "secret": true,
+    "hint": "服务端「任务 → 任务设置 → 开放下载 Key」，默认值与接口文档一致；留空时接口会返回 401。"
+  },
+  "download_subdir": {
+    "description": "下载子目录（相对服务端下载根目录）",
+    "type": "string",
+    "default": "",
+    "hint": "留空直接保存到服务端下载根目录；填 astrbot 则保存到 <download_root>/astrbot/，父目录由服务端自动创建。"
+  },
+  "verify_ssl": {
+    "description": "校验 HTTPS 证书",
+    "type": "bool",
+    "default": true,
+    "hint": "使用自签名证书的 HTTPS 服务时请关闭。"
+  }
+}

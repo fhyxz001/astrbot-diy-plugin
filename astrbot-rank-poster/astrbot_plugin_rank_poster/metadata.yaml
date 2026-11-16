@@ -1,0 +1,19 @@
+name: astrbot_plugin_rank_poster
+display_name: 排行榜海报下载
+desc: 查询日榜/周榜/月榜/总榜海报，按图片序号提交到开放下载接口下载视频。
+short_desc: 排行榜海报 + 序号提交下载
+version: 2.1.0
+author: hexb
+repo: https://gitee.com/hexbkyoma/astrbot-rank-poster
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp
+  - telegram
+  - discord
+  - lark
+  - qq_official
+  - qq_official_webhook
+  - wecom
+  - wecom_ai_bot
+  - weixin_official_account
+  - weixin_oc
