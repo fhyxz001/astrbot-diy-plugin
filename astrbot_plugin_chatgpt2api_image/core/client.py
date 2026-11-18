@@ -26,7 +26,7 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "AstrBot-ChatGPT2API-Image/0.2.0"
+USER_AGENT = "AstrBot-ChatGPT2API-Image/0.2.1"
 
 
 @dataclass(frozen=True)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig, logger
@@ -22,6 +23,7 @@ if __package__:
         EDIT_COMMANDS,
         MAX_IMAGE_BYTES,
         extract_prompt,
+        starts_with_command,
     )
 else:  # 兼容直接运行/独立调试
     from core.client import ChatGpt2ApiClient
@@ -32,6 +34,7 @@ else:  # 兼容直接运行/独立调试
         EDIT_COMMANDS,
         MAX_IMAGE_BYTES,
         extract_prompt,
+        starts_with_command,
     )
 
 try:
@@ -44,16 +47,28 @@ except Exception:  # pragma: no cover - 兼容旧版 AstrBot
 
 PLUGIN_NAME = "astrbot_plugin_chatgpt2api_image"
 MAX_PROMPT_LENGTH = 4000
+# 发送 /改图 提示词后，等待用户补发图片的有效时间。
+PENDING_EDIT_TTL = 300.0
+
+
+@dataclass
+class PendingEdit:
+    prompt: str
+    expires_at: float
+
 
 HELP_TEXT = """ChatGPT2API 生图与改图
 /st <提示词>      根据提示词生成图片
 /st <提示词> + 图片  附带或引用图片时改为编辑该图片
-/改图 <提示词>    编辑图片（需附带或引用图片）
+/改图 <提示词>    编辑图片；未带图片时会等待你补发
 /st 帮助          查看本说明
+
+改图也支持分两步：先发送 /改图 把表情改为哭泣，
+再单独发送一张图片，插件会自动开始改图（5 分钟内有效）。
 
 示例：
 /st 一张极简产品海报，白色背景，留白充足
-/改图 把背景改成赛博朋克夜景（发送图片时使用）
+/改图 把背景改成赛博朋克夜景
 
 也可以使用 /生图、/绘图，或 /修图、/图片编辑。生成数量、尺寸、质量、并发和冷却时间可在插件配置中调整。"""
 
@@ -62,7 +77,7 @@ HELP_TEXT = """ChatGPT2API 生图与改图
     PLUGIN_NAME,
     "DIY",
     "通过 ChatGPT2API 的 OpenAI 兼容接口，用 /st 生成图片或用 /改图 编辑图片",
-    "0.2.0",
+    "0.2.1",
 )
 class ChatGpt2ApiImagePlugin(Star):
     def __init__(
@@ -102,6 +117,7 @@ class ChatGpt2ApiImagePlugin(Star):
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._cooldown_lock = asyncio.Lock()
         self._cooldowns: dict[str, float] = {}
+        self._pending_edits: dict[str, PendingEdit] = {}
 
         logger.info(
             "ChatGPT2API 生图插件已加载：%s（模型：%s）",
@@ -128,6 +144,7 @@ class ChatGpt2ApiImagePlugin(Star):
     @filter.command("st", alias={"生图", "绘图"})
     async def generate_image(self, event: AstrMessageEvent):
         """根据提示词生成图片；附带或引用图片时改为编辑该图片。"""
+        self._pending_edits.pop(self._pending_key(event), None)
         prompt = extract_prompt(event.message_str, DEFAULT_COMMANDS)
         if not prompt or prompt.lower() in {"帮助", "help", "?", "？"}:
             yield event.plain_result(HELP_TEXT)
@@ -138,7 +155,8 @@ class ChatGpt2ApiImagePlugin(Star):
 
     @filter.command("改图", alias={"修图", "图片编辑", "edit"})
     async def edit_image(self, event: AstrMessageEvent):
-        """编辑图片。用法：/改图 提示词，并附带或引用一张图片。"""
+        """编辑图片。未携带图片时会先记录要求，等待用户补发图片。"""
+        self._pending_edits.pop(self._pending_key(event), None)
         prompt = extract_prompt(event.message_str, EDIT_COMMANDS)
         if not prompt or prompt.lower() in {"帮助", "help", "?", "？"}:
             yield event.plain_result(HELP_TEXT)
@@ -149,11 +167,42 @@ class ChatGpt2ApiImagePlugin(Star):
         ):
             yield result
 
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def handle_pending_edit_image(self, event: AstrMessageEvent):
+        """收到待改图用户补发的图片后，执行之前记录的改图要求。"""
+        key = self._pending_key(event)
+        pending = self._pending_edits.get(key)
+        if pending is None:
+            return
+
+        now = time.monotonic()
+        if pending.expires_at <= now:
+            self._pending_edits.pop(key, None)
+            return
+
+        # 新的指令消息由对应的指令处理器负责。
+        if starts_with_command(
+            event.message_str, EDIT_COMMANDS + DEFAULT_COMMANDS
+        ):
+            return
+
+        images = await self._collect_images(event)
+        if not images:
+            return
+
+        self._pending_edits.pop(key, None)
+        event.should_call_llm(False)
+        async for result in self._handle_request(
+            event, pending.prompt, require_image=True, images=images
+        ):
+            yield result
+
     async def _handle_request(
         self,
         event: AstrMessageEvent,
         prompt: str,
         require_image: bool = False,
+        images: list[bytes] | None = None,
     ):
         if event.get_group_id() and not self.allow_group:
             yield event.plain_result(
@@ -174,11 +223,14 @@ class ChatGpt2ApiImagePlugin(Star):
             )
             return
 
-        images = await self._collect_images(event)
+        if images is None:
+            images = await self._collect_images(event)
         if require_image and not images:
+            self._remember_pending_edit(event, prompt)
+            minutes = int(PENDING_EDIT_TTL // 60)
             yield event.plain_result(
-                "请附带或引用一张图片，并写上编辑要求。\n"
-                "用法：/改图 改成赛博朋克夜景（同时发送或引用图片）"
+                f"收到，请在 {minutes} 分钟内发送要编辑的图片（仅限一张）。\n"
+                f"编辑要求：{prompt}"
             )
             return
         if images and len(images[0]) > MAX_IMAGE_BYTES:
@@ -250,6 +302,28 @@ class ChatGpt2ApiImagePlugin(Star):
             )
         for path in paths:
             yield event.image_result(str(path))
+
+    @staticmethod
+    def _pending_key(event: AstrMessageEvent) -> str:
+        origin = getattr(event, "unified_msg_origin", "") or str(
+            getattr(event, "session", "")
+        )
+        return f"{origin}:{event.get_sender_id() or ''}"
+
+    def _remember_pending_edit(
+        self, event: AstrMessageEvent, prompt: str
+    ) -> None:
+        now = time.monotonic()
+        if len(self._pending_edits) > 128:
+            self._pending_edits = {
+                key: item
+                for key, item in self._pending_edits.items()
+                if item.expires_at > now
+            }
+        self._pending_edits[self._pending_key(event)] = PendingEdit(
+            prompt=prompt,
+            expires_at=now + PENDING_EDIT_TTL,
+        )
 
     async def _collect_images(self, event: AstrMessageEvent) -> list[bytes]:
         """提取消息中附带或被引用消息里的图片数据。"""

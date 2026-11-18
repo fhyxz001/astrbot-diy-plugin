@@ -10,6 +10,7 @@ from core.utils import (
     normalize_api_key,
     normalize_base_url,
     sniff_image_mime,
+    starts_with_command,
 )
 
 PNG_BYTES = (
@@ -102,6 +103,19 @@ class UtilsTest(unittest.TestCase):
                 self.assertEqual(
                     extract_prompt(raw, EDIT_COMMANDS), expected
                 )
+
+    def test_starts_with_command(self) -> None:
+        edit_commands = EDIT_COMMANDS
+        self.assertTrue(starts_with_command("/改图 改一下", edit_commands))
+        self.assertTrue(starts_with_command("改图", edit_commands))
+        self.assertTrue(starts_with_command("!修图 去掉背景", edit_commands))
+        self.assertTrue(
+            starts_with_command("/st 一只猫", EDIT_COMMANDS + ("st",))
+        )
+        self.assertFalse(starts_with_command("这张图改一下", edit_commands))
+        self.assertFalse(starts_with_command("sticker"))
+        self.assertFalse(starts_with_command(""))
+        self.assertFalse(starts_with_command("图片编辑一下", edit_commands))
 
     def test_image_sniffing(self) -> None:
         self.assertEqual(sniff_image_mime(PNG_BYTES), "image/png")

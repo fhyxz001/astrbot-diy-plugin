@@ -67,6 +67,32 @@ def build_endpoint(base_url: object, action: str = "generations") -> str:
     return f"{path}/v1/images/{action}"
 
 
+def _match_command(
+    text: str, commands: tuple[str, ...]
+) -> re.Match[str] | None:
+    for command in commands:
+        match = re.match(
+            rf"^{re.escape(command)}(?=$|[\s\u3000])",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return match
+    return None
+
+
+def starts_with_command(
+    message: object,
+    commands: tuple[str, ...] = DEFAULT_COMMANDS,
+) -> bool:
+    """判断消息是否以指定指令开头（忽略开头的 /、! 等前缀）。"""
+    text = str(message or "").strip(_TRIM_CHARS)
+    if not text:
+        return False
+    text = re.sub(r"^[/!！]+", "", text).strip(_TRIM_CHARS)
+    return _match_command(text, commands) is not None
+
+
 def extract_prompt(
     message: object,
     commands: tuple[str, ...] = DEFAULT_COMMANDS,
@@ -84,15 +110,9 @@ def extract_prompt(
 
     text = re.sub(r"^[/!！]+", "", text).strip(_TRIM_CHARS)
 
-    for command in commands:
-        match = re.match(
-            rf"^{re.escape(command)}(?=$|[\s\u3000])",
-            text,
-            flags=re.IGNORECASE,
-        )
-        if match:
-            text = text[match.end() :].strip(_TRIM_CHARS)
-            break
+    match = _match_command(text, commands)
+    if match:
+        text = text[match.end() :].strip(_TRIM_CHARS)
 
     if len(text) >= 2 and _QUOTE_PAIRS.get(text[0]) == text[-1]:
         text = text[1:-1].strip(_TRIM_CHARS)
