@@ -281,6 +281,100 @@ class ChatGpt2ApiClientTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("没有返回可用图片", str(context.exception))
 
+    async def test_edit_builds_multipart_request(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.requests.append(request)
+            return httpx.Response(200, json={"data": [{"b64_json": PNG_B64}]})
+
+        client = ChatGpt2ApiClient(
+            BASE_URL, "secret", transport=httpx.MockTransport(handler)
+        )
+        try:
+            images = await client.edit("改成赛博朋克夜景", PNG_BYTES)
+        finally:
+            await client.close()
+
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0].data, PNG_BYTES)
+
+        request = self.requests[0]
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.url.path, "/v1/images/edits")
+        self.assertEqual(
+            request.headers["authorization"], "Bearer secret"
+        )
+        self.assertTrue(
+            request.headers["content-type"].startswith(
+                "multipart/form-data; boundary="
+            )
+        )
+
+        body = request.content
+        self.assertIn(b'name="model"', body)
+        self.assertIn(b"gpt-image-2.6", body)
+        self.assertIn(b'name="prompt"', body)
+        self.assertIn("改成赛博朋克夜景".encode(), body)
+        self.assertIn(b'name="image"; filename="input.png"', body)
+        self.assertIn(b"Content-Type: image/png", body)
+        self.assertIn(PNG_BYTES, body)
+        self.assertNotIn(b'name="n"', body)
+
+    async def test_edit_uses_size_quality_and_count(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.requests.append(request)
+            return httpx.Response(200, json={"data": [{"b64_json": PNG_B64}]})
+
+        client = ChatGpt2ApiClient(
+            BASE_URL,
+            "",
+            size="1024x1024",
+            quality="high",
+            transport=httpx.MockTransport(handler),
+        )
+        try:
+            await client.edit("改成水彩风格", b"\xff\xd8\xff\xe0jpeg", n=2)
+        finally:
+            await client.close()
+
+        body = self.requests[0].content
+        self.assertIn(b'name="size"', body)
+        self.assertIn(b"1024x1024", body)
+        self.assertIn(b'name="quality"', body)
+        self.assertIn(b"high", body)
+        self.assertIn(b'name="n"', body)
+        self.assertIn(b'name="image"; filename="input.jpg"', body)
+
+    async def test_edit_requires_image(self) -> None:
+        client = ChatGpt2ApiClient(
+            BASE_URL, transport=httpx.MockTransport(
+                lambda request: httpx.Response(200)
+            )
+        )
+        try:
+            with self.assertRaises(ConfigError):
+                await client.edit("改图", b"")
+        finally:
+            await client.close()
+
+    async def test_edit_http_error_message(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                500,
+                json={"error": {"message": "upstream failed"}},
+            )
+
+        client = ChatGpt2ApiClient(
+            BASE_URL, transport=httpx.MockTransport(handler)
+        )
+        try:
+            with self.assertRaises(ApiError) as context:
+                await client.edit("改图", PNG_BYTES)
+        finally:
+            await client.close()
+
+        self.assertIn("图片编辑服务异常", str(context.exception))
+        self.assertIn("upstream failed", str(context.exception))
+
     async def test_not_configured(self) -> None:
         client = ChatGpt2ApiClient("", transport=httpx.MockTransport(
             lambda request: httpx.Response(200)

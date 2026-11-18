@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 DEFAULT_COMMANDS = ("st", "生图", "绘图")
+EDIT_COMMANDS = ("改图", "修图", "图片编辑", "edit")
 MAX_IMAGE_BYTES = 30 * 1024 * 1024
 
 _TRIM_CHARS = " \t\r\n\u3000"
@@ -44,18 +45,26 @@ def normalize_base_url(value: object) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc, path, "", ""))
 
 
-def build_endpoint(base_url: object) -> str:
-    """根据用户填写的地址拼接 OpenAI 兼容的生图接口。"""
+def build_endpoint(base_url: object, action: str = "generations") -> str:
+    """根据用户填写的地址拼接 OpenAI 兼容的图片接口。
+
+    ``action`` 为 ``generations``（文生图）或 ``edits``（图片编辑）。
+    """
     base = normalize_base_url(base_url)
     if not base:
         return ""
 
+    action = "edits" if action == "edits" else "generations"
     path = base.rstrip("/")
-    if path.endswith("/images/generations"):
-        return path
+    for suffix in ("/images/generations", "/images/edits"):
+        if path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    if path.endswith("/images"):
+        return f"{path}/{action}"
     if path.endswith("/v1"):
-        return f"{path}/images/generations"
-    return f"{path}/v1/images/generations"
+        return f"{path}/images/{action}"
+    return f"{path}/v1/images/{action}"
 
 
 def extract_prompt(

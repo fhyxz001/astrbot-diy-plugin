@@ -17,6 +17,7 @@ from .errors import ApiError, ConfigError
 from .utils import (
     MAX_IMAGE_BYTES,
     build_endpoint,
+    guess_image_extension,
     normalize_api_key,
     normalize_base_url,
     sniff_image_mime,
@@ -25,7 +26,7 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "AstrBot-ChatGPT2API-Image/0.1.0"
+USER_AGENT = "AstrBot-ChatGPT2API-Image/0.2.0"
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ class GeneratedImage:
 
 
 class ChatGpt2ApiClient:
-    """调用 ``/v1/images/generations`` 接口。"""
+    """调用 ``/v1/images/generations`` 与 ``/v1/images/edits`` 接口。"""
 
     def __init__(
         self,
@@ -59,7 +60,6 @@ class ChatGpt2ApiClient:
 
         headers = {
             "Accept": "application/json, image/*;q=0.9, */*;q=0.8",
-            "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         }
         if self.api_key:
@@ -86,6 +86,10 @@ class ChatGpt2ApiClient:
     @property
     def endpoint(self) -> str:
         return build_endpoint(self.base_url)
+
+    @property
+    def edit_endpoint(self) -> str:
+        return build_endpoint(self.base_url, "edits")
 
     async def close(self) -> None:
         await self._http.aclose()
@@ -121,22 +125,109 @@ class ChatGpt2ApiClient:
         if final_quality:
             payload["quality"] = final_quality
 
+        response = await self._post(
+            self.endpoint,
+            label="生图",
+            json=payload,
+        )
+        return await self._parse_response(response)
+
+    async def edit(
+        self,
+        prompt: str,
+        image: bytes,
+        mime_type: str = "",
+        filename: str = "",
+        n: int = 1,
+        size: str | None = None,
+        quality: str | None = None,
+    ) -> list[GeneratedImage]:
+        """编辑图片（multipart/form-data），返回解码后的图片数据。"""
+        prompt = str(prompt or "").strip()
+        if not prompt:
+            raise ConfigError("提示词不能为空。")
+        if not image:
+            raise ConfigError("没有可编辑的图片。")
+        if len(image) > MAX_IMAGE_BYTES:
+            raise ConfigError(
+                "图片体积超过 "
+                f"{MAX_IMAGE_BYTES // (1024 * 1024)} MB，已拒绝上传。"
+            )
+        if not self.configured:
+            raise ConfigError(
+                "尚未配置 ChatGPT2API 服务地址或模型，请先在插件配置中填写。"
+            )
+
+        final_mime = sniff_image_mime(image) or str(mime_type or "").strip()
+        if not final_mime:
+            final_mime = "image/png"
+        final_name = str(filename or "").strip() or (
+            f"input.{guess_image_extension(image, final_mime)}"
+        )
+
+        form: dict[str, str] = {
+            "model": self.model,
+            "prompt": prompt,
+        }
+        final_size = str(size if size is not None else self.size).strip()
+        final_quality = str(
+            quality if quality is not None else self.quality
+        ).strip()
+        if final_size:
+            form["size"] = final_size
+        if final_quality:
+            form["quality"] = final_quality
+        count = max(1, min(int(n), 8))
+        # 与官方 curl 保持一致：单张时不额外发送 n 参数。
+        if count > 1:
+            form["n"] = str(count)
+
+        response = await self._post(
+            self.edit_endpoint,
+            label="图片编辑",
+            data=form,
+            files={"image": (final_name, image, final_mime)},
+        )
+        return await self._parse_response(response)
+
+    async def _post(
+        self,
+        url: str,
+        *,
+        label: str,
+        json: Any = None,
+        data: Any = None,
+        files: Any = None,
+    ) -> httpx.Response:
+        headers = (
+            {"Content-Type": "application/json"} if json is not None else None
+        )
         try:
-            response = await self._http.post(self.endpoint, json=payload)
+            response = await self._http.post(
+                url,
+                json=json,
+                data=data,
+                files=files,
+                headers=headers,
+            )
         except httpx.TimeoutException as exc:
             raise ApiError(
-                f"请求生图接口超时（{self.timeout:g} 秒），"
+                f"请求{label}接口超时（{self.timeout:g} 秒），"
                 "可调大插件配置中的请求超时。"
             ) from exc
         except httpx.HTTPError as exc:
-            raise ApiError(f"无法连接生图接口：{exc}") from exc
+            raise ApiError(f"无法连接{label}接口：{exc}") from exc
 
         if response.status_code >= 400:
             raise ApiError(
-                self._http_error_message(response),
+                self._http_error_message(response, label),
                 status_code=response.status_code,
             )
+        return response
 
+    async def _parse_response(
+        self, response: httpx.Response
+    ) -> list[GeneratedImage]:
         content_type = response.headers.get("content-type", "")
         if content_type.lower().startswith("image/"):
             return [
@@ -278,7 +369,9 @@ class ChatGpt2ApiClient:
         )
 
     @staticmethod
-    def _http_error_message(response: httpx.Response) -> str:
+    def _http_error_message(
+        response: httpx.Response, label: str = "生图"
+    ) -> str:
         detail = _response_error_detail(response)
         code = response.status_code
         if code in {401, 403}:
@@ -288,7 +381,7 @@ class ChatGpt2ApiClient:
         elif code == 429:
             prefix = "请求过于频繁或额度不足（HTTP 429）"
         elif code >= 500:
-            prefix = f"生图服务异常（HTTP {code}）"
+            prefix = f"{label}服务异常（HTTP {code}）"
         else:
             prefix = f"接口返回 HTTP {code}"
         return f"{prefix}：{detail}" if detail else prefix

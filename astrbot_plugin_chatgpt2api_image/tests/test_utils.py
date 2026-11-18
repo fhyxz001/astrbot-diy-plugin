@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from core.utils import (
+    EDIT_COMMANDS,
     build_endpoint,
     extract_prompt,
     guess_image_extension,
@@ -50,6 +51,25 @@ class UtilsTest(unittest.TestCase):
         )
         self.assertEqual(build_endpoint(""), "")
 
+    def test_build_edit_endpoint(self) -> None:
+        self.assertEqual(
+            build_endpoint("192.168.1.13:4444", "edits"),
+            "http://192.168.1.13:4444/v1/images/edits",
+        )
+        self.assertEqual(
+            build_endpoint("http://host:4444/v1/", "edits"),
+            "http://host:4444/v1/images/edits",
+        )
+        self.assertEqual(
+            build_endpoint("http://host:4444/v1/images/generations", "edits"),
+            "http://host:4444/v1/images/edits",
+        )
+        self.assertEqual(
+            build_endpoint("http://host:4444/v1/images/edits"),
+            "http://host:4444/v1/images/generations",
+        )
+        self.assertEqual(build_endpoint("", "edits"), "")
+
     def test_extract_prompt(self) -> None:
         cases = {
             "/st 一只猫": "一只猫",
@@ -67,6 +87,21 @@ class UtilsTest(unittest.TestCase):
         for raw, expected in cases.items():
             with self.subTest(raw=raw):
                 self.assertEqual(extract_prompt(raw), expected)
+
+    def test_extract_edit_prompt(self) -> None:
+        cases = {
+            "/改图 改成赛博朋克夜景": "改成赛博朋克夜景",
+            "改图 换成水彩风格": "换成水彩风格",
+            "/修图  去掉背景": "去掉背景",
+            "/图片编辑 加一顶帽子": "加一顶帽子",
+            "/edit make it cyberpunk": "make it cyberpunk",
+            "/改图": "",
+        }
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    extract_prompt(raw, EDIT_COMMANDS), expected
+                )
 
     def test_image_sniffing(self) -> None:
         self.assertEqual(sniff_image_mime(PNG_BYTES), "image/png")

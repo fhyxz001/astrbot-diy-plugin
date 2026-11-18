@@ -3,7 +3,7 @@
     "description": "ChatGPT2API 服务地址",
     "type": "string",
     "default": "http://192.168.1.13:4444",
-    "hint": "填服务根地址，例如 http://192.168.1.13:4444；插件会自动请求 /v1/images/generations。也可以直接填写到 /v1 或完整接口地址。"
+    "hint": "填服务根地址，例如 http://192.168.1.13:4444；插件会自动请求 /v1/images/generations（生图）或 /v1/images/edits（改图）。也可以直接填写到 /v1 或完整接口地址。"
   },
   "api_key": {
     "description": "接口 API Key",
@@ -27,7 +27,7 @@
       "max": 4,
       "step": 1
     },
-    "hint": "对应请求里的 n 参数。数量越多耗时越长，部分账号可能只允许 1 张。"
+    "hint": "对应请求里的 n 参数。数量越多耗时越长，部分账号可能只允许 1 张；改图时多张会作为不同变体返回。"
   },
   "size": {
     "description": "图片尺寸",

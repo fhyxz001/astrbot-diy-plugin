@@ -1,11 +1,13 @@
-# AstrBot ChatGPT2API 生图
+# AstrBot ChatGPT2API 生图与改图
 
-通过 ChatGPT2API 容器项目提供的 OpenAI 兼容图片接口，在聊天中用 `/st` 指令根据提示词生成并发送图片。
+通过 ChatGPT2API 容器项目提供的 OpenAI 兼容图片接口，在聊天中用 `/st` 指令生成图片，或用 `/改图` 指令编辑图片。
 
 ## 功能
 
-- 指令：`/st <提示词>`，也支持 `/生图`、`/绘图`
-- 调用 `POST /v1/images/generations`，请求体与官方 OpenAI 图片接口一致
+- 文生图：`/st <提示词>`，也支持 `/生图`、`/绘图`
+- 图片编辑：`/改图 <提示词>`，附带图片或引用（回复）一张图片即可，也支持 `/修图`、`/图片编辑`
+- `/st` 附带图片时会自动改为编辑该图片，无需切换指令
+- 生成调用 `POST /v1/images/generations`，编辑调用 `POST /v1/images/edits`（`multipart/form-data`，字段与官方 OpenAI 图片接口一致）
 - 兼容多种响应格式：`b64_json`、图片 URL、data URI、直接返回二进制图片
 - 返回 URL 时由 AstrBot 服务端下载并落盘后再发送，避免平台无法访问内网地址
 - 支持生成数量、尺寸、质量、请求超时、并发数、用户冷却、群聊开关
@@ -29,8 +31,8 @@ pip install -r requirements.txt
 |---|---|
 | `base_url` | ChatGPT2API 服务地址，例如 `http://192.168.1.13:4444` |
 | `api_key` | 接口 Key，对应 `Authorization: Bearer <Key>` |
-| `model` | 图片模型，默认 `gpt-image-2.6` |
-| `image_count` | 每次生成数量，对应请求里的 `n`，默认 1 |
+| `model` | 图片模型，默认 `gpt-image-2.6`，需同时支持生图与编辑 |
+| `image_count` | 每次生成数量，对应请求里的 `n`，默认 1；改图时表示变体数量 |
 | `size` | 图片尺寸，留空则不发送该参数 |
 | `quality` | 图片质量，留空则不发送该参数 |
 | `request_timeout` | 请求超时（秒），默认 120 |
@@ -47,20 +49,24 @@ pip install -r requirements.txt
 http://192.168.1.13:4444
 http://192.168.1.13:4444/v1
 http://192.168.1.13:4444/v1/images/generations
+http://192.168.1.13:4444/v1/images/edits
 ```
 
 如果服务部署在反向代理的子路径下，请填写到该子路径为止，例如
 `https://example.com/chatgpt2api`，插件会请求
-`https://example.com/chatgpt2api/v1/images/generations`。
+`https://example.com/chatgpt2api/v1/images/generations`（改图时为
+`.../v1/images/edits`）。
 
 ## 指令
 
 | 指令 | 说明 |
 |---|---|
-| `/st <提示词>` | 生成图片 |
+| `/st <提示词>` | 生成图片；消息中带图片时改为编辑该图片 |
+| `/改图 <提示词>` | 编辑图片，需同时发送或引用一张图片 |
 | `/st 帮助` | 查看帮助 |
 | `/生图 <提示词>` | 同 `/st` |
 | `/绘图 <提示词>` | 同 `/st` |
+| `/修图`、`/图片编辑` | 同 `/改图` |
 
 群聊中是否需要 @机器人 或唤醒前缀，由 AstrBot 的全局指令唤醒设置决定。
 
@@ -72,7 +78,15 @@ http://192.168.1.13:4444/v1/images/generations
 /生图 一只戴眼镜的橘猫坐在书桌前看代码
 ```
 
-插件实际发送的请求与下面等价（`size`、`quality` 留空时不会出现）：
+改图有两种方式，效果相同：
+
+1. 发送图片，并在同一条消息里写指令：发送图片 + `/改图 改成赛博朋克夜景`
+2. 引用（回复）一张图片，再发送指令：`/改图 把背景换成海边日落`
+
+也可以直接发送图片并配 `/st 改成水彩风格`，插件会自动按改图处理。
+一次请求只使用第一张图片。
+
+生图时插件发送的请求与下面等价（`size`、`quality` 留空时不会出现）：
 
 ```bash
 curl http://192.168.1.13:4444/v1/images/generations \
@@ -81,9 +95,19 @@ curl http://192.168.1.13:4444/v1/images/generations \
   -d '{"model":"gpt-image-2.6","prompt":"一张极简产品海报","n":1}'
 ```
 
+改图时发送 `multipart/form-data`，与下面等价：
+
+```bash
+curl http://192.168.1.13:4444/v1/images/edits \
+  -H "Authorization: Bearer <你的 API Key>" \
+  -F "model=gpt-image-2.6" \
+  -F "prompt=改成赛博朋克夜景" \
+  -F "image=@./input.png"
+```
+
 ## 文件保存位置
 
-生成成功的图片按日期保存到：
+生成或编辑成功的图片按日期保存到：
 
 ```text
 data/plugin_data/astrbot_plugin_chatgpt2api_image/images/YYYYMMDD/
@@ -96,8 +120,14 @@ data/plugin_data/astrbot_plugin_chatgpt2api_image/images/YYYYMMDD/
 ### 404 接口地址不存在
 
 检查 `base_url` 是否多写或少写了路径。插件默认请求
-`<base_url>/v1/images/generations`；如果服务端本身挂在 `/v1` 下，填到
+`<base_url>/v1/images/generations` 或 `<base_url>/v1/images/edits`；如果服务端本身挂在 `/v1` 下，填到
 `http://host:port/v1` 即可，不要重复写 `/v1`。
+
+### 改图没有生效
+
+- 确认使用的是 `/改图`，或者在 `/st` 的同一条消息里带了图片 / 引用了图片。
+- 部分平台不会把被引用消息中的图片放进消息链，此时请把图片和指令放在同一条消息中发送。
+- 确认服务端与 `model` 支持 `/v1/images/edits` 接口。
 
 ### 401 / 403 鉴权失败
 
@@ -126,7 +156,8 @@ python -m unittest discover -s tests -t . -v
 
 ## 说明与限制
 
-- 仅支持一个 ChatGPT2API 服务地址和一个固定模型。
+- 仅支持一个 ChatGPT2API 服务地址和一个固定模型；该模型需要同时支持生图与改图。
 - 不包含提示词审核、内容安全审核或账号池管理，相关能力由 ChatGPT2API 服务端负责。
-- 生成数量上限为 4；实际可用数量取决于服务端账号权限。
+- 生图/改图数量上限为 4；实际可用数量取决于服务端账号权限。
+- 改图每次只上传第一张图片，大小上限 30 MB。
 - API Key 保存在 AstrBot 插件配置中，请妥善保管配置文件和日志。
